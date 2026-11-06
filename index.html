@@ -24,6 +24,7 @@ button:active{opacity:.8}
 <textarea id="t" placeholder="Apunta lo que sea…" aria-label="Apuntar" autofocus></textarea>
 <button id="b" type="button">Apuntar</button>
 <p id="m" role="status"></p>
+<script src="cola.js"></script>
 <script>
 "use strict";
 const COLA = "apuntar-cola", CONF = "apuntar-conf";
@@ -33,6 +34,8 @@ const pon = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)) } catch
 const dos = n => (n < 10 ? "0" : "") + n;
 const ahora = () => { const d = new Date(); return d.getFullYear() + "-" + dos(d.getMonth() + 1) + "-" + dos(d.getDate()) + " " + dos(d.getHours()) + ":" + dos(d.getMinutes()) };
 const borrador = () => pon("apuntar-borrador", t.value);
+const SOLA = "SyncManager" in self;
+const CLAVE = "La clave no vale: vuelve a abrir la app desde tu panel.";
 
 // La dirección y la clave llegan una sola vez desde el panel privado y se quedan en este aparato.
 (function conecta() {
@@ -46,40 +49,67 @@ const borrador = () => pon("apuntar-borrador", t.value);
   const a = [q.get("title"), q.get("text"), q.get("url")].filter(Boolean);
   const u = [...new Set(a)].join("\n");
   t.value = u || lee("apuntar-borrador", "");
-  if (u) history.replaceState(null, "", location.pathname);
+  if (u) { borrador(); history.replaceState(null, "", location.pathname) }
 })();
 
-function pinta(txt) {
-  const n = lee(COLA, []).length, c = lee(CONF, null);
+// La conexión y las notas de la versión anterior pasan a la base que también lee el servicio de fondo.
+async function prepara() {
+  try {
+    const c = lee(CONF, null); if (c) await Cola.ponConf(c);
+    for (const n of lee(COLA, [])) await Cola.pon(n);
+    localStorage.removeItem(COLA);
+  } catch (e) {}
+}
+
+let turno = 0;
+const di = x => { turno++; m.textContent = x };
+async function pinta(txt) {
+  const mio = ++turno; let n = 0, c = null;
+  try { n = (await Cola.todas()).length; c = await Cola.conf() } catch (e) {}
+  if (mio !== turno) return;
   if (!c) { m.textContent = "Falta conectar la app: ábrela una vez desde tu panel, con el botón Instalar."; return }
-  const p = n ? (n === 1 ? "1 nota sin enviar. " : n + " notas sin enviar. ") + "Se envían cuando abras la app con conexión." : "";
-  m.textContent = [txt, p].filter(Boolean).join(" ");
+  const p = !n ? "" : (n === 1 ? "1 nota sin enviar. Se envía sola" : n + " notas sin enviar. Se envían solas") + (SOLA ? " en cuanto haya conexión, aunque cierres la app." : " al abrir la app con conexión.");
+  m.textContent = [txt, p].filter(Boolean).join(" ") || (SOLA ? "Lo que apuntes se envía solo, aunque cierres la app." : "");
 }
-let enviando = false;
-async function envia() {
-  const c = lee(CONF, null); if (enviando || !c) return; enviando = true; let hechas = 0;
-  for (;;) {
-    const q = lee(COLA, []); if (!q.length) break;
-    const n = q[0], ab = new AbortController(), reloj = setTimeout(() => ab.abort(), 25000);
-    try {
-      const r = await fetch(c.d, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ k: c.k, f: n.f, t: n.t, id: n.id }), signal: ab.signal });
-      const j = await r.json(); clearTimeout(reloj);
-      if (!j.ok) { pinta("La clave no vale: vuelve a abrir la app desde tu panel."); enviando = false; return }
-      pon(COLA, lee(COLA, []).filter(x => x.id !== n.id)); hechas++;
-    } catch (e) { clearTimeout(reloj); pinta(hechas ? "" : "Guardado en el móvil."); enviando = false; return }
+
+// El envío lo hace el servicio de fondo, que sigue aunque se cierre la app y espera a que vuelva la conexión.
+// Si el aparato no lo permite, envía la propia página.
+async function pide() {
+  try {
+    const reg = await Promise.race([navigator.serviceWorker.ready, new Promise((_, no) => setTimeout(no, 4000))]);
+    if (!navigator.onLine && (await reg.sync.getTags()).length) return;
+    // Un nombre nuevo cada vez: así lo intenta al momento, aunque un intento anterior esté esperando para reintentar.
+    await reg.sync.register("enviar-" + Date.now());
+  } catch (e) {
+    try { const n = await enviaCola(); pinta(n ? "Enviado." : "") }
+    catch (e2) { if (e2.clave) di(CLAVE); else pinta("Guardado en el móvil.") }
   }
-  enviando = false; pinta(hechas ? "Enviado." : "");
 }
-b.addEventListener("click", () => {
+const pendiente = async () => { try { if ((await Cola.todas()).length) pide() } catch (e) {} };
+
+b.addEventListener("click", async () => {
   const x = t.value.trim(); if (!x) return;
-  pon(COLA, lee(COLA, []).concat([{ f: ahora(), t: x, id: Date.now().toString(36) + Math.random().toString(36).slice(2, 8) }]));
-  t.value = ""; borrador(); pinta("Guardado."); t.focus(); envia();
+  t.value = ""; borrador(); t.focus();
+  try { await Cola.pon({ f: ahora(), t: x, id: Date.now().toString(36) + Math.random().toString(36).slice(2, 8) }) }
+  catch (e) { t.value = x; borrador(); di("No se ha podido guardar. Vuelve a pulsar Apuntar."); return }
+  const c = await Cola.conf().catch(() => null);
+  if (c && navigator.onLine) di("Guardado. Enviando…"); else pinta("Guardado.");
+  pide();
 });
 t.addEventListener("input", borrador);
-addEventListener("online", envia);
-document.addEventListener("visibilitychange", () => { if (!document.hidden) envia() });
-if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
-pinta(""); envia();
+addEventListener("online", pendiente);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) { pinta(""); pendiente() } });
+
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.addEventListener("message", e => {
+    const d = e.data || {};
+    if (d.clave) di(CLAVE); else pinta(d.enviado ? "Enviado." : "");
+  });
+  navigator.serviceWorker.register("sw.js").catch(() => {});
+  // Segunda red: si el navegador se rinde tras varios intentos, lo vuelve a probar de vez en cuando.
+  navigator.serviceWorker.ready.then(r => r.periodicSync && r.periodicSync.register("enviar", { minInterval: 3600000 })).catch(() => {});
+}
+prepara().then(() => { pinta(""); pendiente() });
 </script>
 </body>
 </html>
