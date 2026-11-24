@@ -1,6 +1,7 @@
 {
-  "name": "Apuntar",
-  "short_name": "Apuntar",
+  "name": "Segundo Cerebro",
+  "description": "Apuntar al momento y recibir los avisos de tu segundo cerebro",
+  "short_name": "Cerebro",
   "id": "/apuntar/",
   "start_url": "/apuntar/",
   "scope": "/apuntar/",

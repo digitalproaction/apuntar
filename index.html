@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0e6b66">
 <meta name="robots" content="noindex">
-<title>Apuntar</title>
+<title>Segundo Cerebro</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-192.png">
 <style>
@@ -18,13 +18,30 @@ textarea{flex:1 1 auto;min-height:140px;width:100%;padding:12px;font:inherit;bor
 button{flex:none;width:100%;padding:15px;font:inherit;font-weight:600;border:0;border-radius:12px;background:var(--acc);color:#fff}
 button:active{opacity:.8}
 #m{flex:none;margin:0;min-height:22px;font-size:14px;color:var(--muted)}
+#av{flex:none;display:flex;flex-direction:column;gap:8px;border-top:1px solid var(--line);padding-top:10px}
+#av header{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+#av header b{font-size:17px}
+#ave{font-size:14px;color:var(--muted);text-align:right}
+#avl{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px;max-height:38vh;overflow:auto}
+#avl li{padding:9px 11px;border:1px solid var(--line);border-radius:10px;background:var(--box)}
+#avl li.va{cursor:pointer}
+#avl b{display:block;font-size:15px}
+#avl span{display:block;font-size:14px;color:var(--ink);overflow-wrap:anywhere}
+#avl small{display:block;font-size:12px;color:var(--muted);margin-top:2px}
+#avl .nada{border:0;background:none;padding:0;font-size:14px;color:var(--muted)}
 </style>
 </head>
 <body>
 <textarea id="t" placeholder="Apunta lo que sea…" aria-label="Apuntar" autofocus></textarea>
 <button id="b" type="button">Apuntar</button>
 <p id="m" role="status"></p>
+<section id="av" aria-label="Avisos">
+  <header><b>Avisos</b><span id="ave" role="status"></span></header>
+  <button id="avb" type="button" hidden>Activar avisos</button>
+  <ul id="avl"></ul>
+</section>
 <script src="cola.js"></script>
+<script src="avisos.js"></script>
 <script>
 "use strict";
 const COLA = "apuntar-cola", CONF = "apuntar-conf";
@@ -103,13 +120,50 @@ document.addEventListener("visibilitychange", () => { if (!document.hidden) { pi
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.addEventListener("message", e => {
     const d = e.data || {};
+    if (d.aviso) { avisos(""); return }
     if (d.clave) di(CLAVE); else pinta(d.enviado ? "Enviado." : "");
   });
   navigator.serviceWorker.register("sw.js").catch(() => {});
   // Segunda red: si el navegador se rinde tras varios intentos, lo vuelve a probar de vez en cuando.
   navigator.serviceWorker.ready.then(r => r.periodicSync && r.periodicSync.register("enviar", { minInterval: 3600000 })).catch(() => {});
 }
-prepara().then(() => { pinta(""); pendiente() });
+// ----- Avisos del Mac (24/11/2026): se activan una vez y llegan aunque la app esté cerrada. -----
+const avb = document.getElementById("avb"), ave = document.getElementById("ave"), avl = document.getElementById("avl");
+const PUEDE = "serviceWorker" in navigator && "PushManager" in self && "Notification" in self;
+const horaAv = ms => { const d = new Date(ms); return dos(d.getDate()) + "/" + dos(d.getMonth() + 1) + " " + dos(d.getHours()) + ":" + dos(d.getMinutes()) };
+async function avisos(txt) {
+  let s = null;
+  if (PUEDE) try { s = await (await navigator.serviceWorker.ready).pushManager.getSubscription() } catch (e) {}
+  const perm = PUEDE ? Notification.permission : "denied", activos = !!(s && perm === "granted");
+  avb.hidden = !PUEDE || activos || perm === "denied";
+  ave.textContent = txt || (!PUEDE ? "Este navegador no deja recibir avisos." : activos ? "Activados" : perm === "denied" ? "Bloqueados en los ajustes del móvil" : "Sin activar");
+  let l = [];
+  try { l = await Avisos.ultimos(15) } catch (e) {}
+  avl.textContent = "";
+  if (!l.length) { const li = document.createElement("li"); li.className = "nada"; li.textContent = activos ? "Aún no ha llegado ningún aviso." : ""; if (li.textContent) avl.appendChild(li); return }
+  for (const a of l) {
+    const li = document.createElement("li"), b = document.createElement("b"), sp = document.createElement("span"), sm = document.createElement("small");
+    b.textContent = a.titulo; sp.textContent = a.cuerpo; sm.textContent = horaAv(a.t);
+    li.append(b, sp, sm);
+    if (a.url) { li.className = "va"; li.addEventListener("click", () => open(a.url, "_blank")) }
+    avl.appendChild(li);
+  }
+}
+avb.addEventListener("click", async () => {
+  avb.disabled = true;
+  try {
+    const p = await Notification.requestPermission();
+    if (p !== "granted") { avisos(p === "denied" ? "Bloqueados: actívalos en los ajustes del móvil, en esta app." : "Sin activar."); return }
+    const reg = await navigator.serviceWorker.ready;
+    const s = (await reg.pushManager.getSubscription()) || (await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: bytesClave(VAPID) }));
+    await Cola.pon(notaAlta(s.toJSON()));
+    const c = await Cola.conf().catch(() => null);
+    avisos(c ? "Activados. En unos minutos te llega uno de prueba." : "Activados en el móvil. Falta conectar la app: ábrela una vez desde tu panel.");
+    pide();
+  } catch (e) { avisos("No se han podido activar. Vuelve a pulsar.") }
+  finally { avb.disabled = false }
+});
+prepara().then(() => { pinta(""); pendiente(); avisos("") });
 </script>
 </body>
 </html>
