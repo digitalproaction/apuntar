@@ -23,6 +23,7 @@ const Avisos = (() => {
   return {
     guarda: a => hace("readwrite", s => s.add(a)),
     ultimos: async n => ((await hace("readonly", s => s.getAll())) || []).slice(-n).reverse(),
+    marca: async n => { const a = await hace("readonly", s => s.get(n)); if (a) { a.sobra = true; await hace("readwrite", s => s.put(a)) } },
     // Se quedan los 50 últimos.
     poda: async () => {
       const k = (await hace("readonly", s => s.getAllKeys())) || [];
@@ -39,3 +40,5 @@ const dosAv = n => (n < 10 ? "0" : "") + n;
 const ahoraAv = () => { const d = new Date(); return d.getFullYear() + "-" + dosAv(d.getMonth() + 1) + "-" + dosAv(d.getDate()) + " " + dosAv(d.getHours()) + ":" + dosAv(d.getMinutes()) };
 // El alta va por el mismo buzón que las notas, con su clave: solo esta app puede darse de alta para recibir avisos.
 const notaAlta = s => ({ f: ahoraAv(), t: "AVISOS-ALTA " + JSON.stringify(s), id: "alta-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6) });
+// «Sobra»: este aviso no le sirve a Marc. El vigilante deja de mandarlo y el repaso del lunes revisa la regla.
+const notaSobra = clave => ({ f: ahoraAv(), t: "AVISOS-SOBRA " + clave, id: "sobra-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6) });

@@ -29,6 +29,9 @@ button:active{opacity:.8}
 #avl span{display:block;font-size:14px;color:var(--ink);overflow-wrap:anywhere}
 #avl small{display:block;font-size:12px;color:var(--muted);margin-top:2px}
 #avl .nada{border:0;background:none;padding:0;font-size:14px;color:var(--muted)}
+#avl .pie{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:2px}
+#avl .sobra{width:auto;flex:none;padding:5px 12px;font-size:13px;font-weight:600;border:1px solid var(--line);border-radius:8px;background:none;color:var(--muted)}
+#avl .sobra[disabled]{opacity:.6}
 </style>
 </head>
 <body>
@@ -142,9 +145,19 @@ async function avisos(txt) {
   avl.textContent = "";
   if (!l.length) { const li = document.createElement("li"); li.className = "nada"; li.textContent = activos ? "Aún no ha llegado ningún aviso." : ""; if (li.textContent) avl.appendChild(li); return }
   for (const a of l) {
-    const li = document.createElement("li"), b = document.createElement("b"), sp = document.createElement("span"), sm = document.createElement("small");
-    b.textContent = a.titulo; sp.textContent = a.cuerpo; sm.textContent = horaAv(a.t);
-    li.append(b, sp, sm);
+    const li = document.createElement("li"), b = document.createElement("b"), sp = document.createElement("span"), pie = document.createElement("div"), sm = document.createElement("small");
+    b.textContent = a.titulo; sp.textContent = a.cuerpo; sm.textContent = horaAv(a.t); pie.className = "pie"; pie.append(sm);
+    // «Sobra»: ese aviso deja de llegar (lo recoge el vigilante del Mac por el buzón).
+    if (a.clave) {
+      const x = document.createElement("button"); x.type = "button"; x.className = "sobra";
+      x.textContent = a.sobra ? "Marcado: sobra" : "Sobra"; x.disabled = !!a.sobra;
+      x.addEventListener("click", async ev => {
+        ev.stopPropagation(); x.disabled = true; x.textContent = "Marcado: sobra";
+        try { await Cola.pon(notaSobra(a.clave)); await Avisos.marca(a.n); pide() } catch (e) { x.disabled = false; x.textContent = "Sobra" }
+      });
+      pie.append(x);
+    }
+    li.append(b, sp, pie);
     if (a.url) { li.className = "va"; li.addEventListener("click", () => open(a.url, "_blank")) }
     avl.appendChild(li);
   }

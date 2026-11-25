@@ -3,7 +3,7 @@
 // y envía las notas por su cuenta: sigue aunque la app esté cerrada y espera a que vuelva la conexión.
 // Desde el 24/11/2026 también enseña los avisos que manda el Mac (avisos.js).
 importScripts("cola.js", "avisos.js");
-const VERSION = "apuntar-4";
+const VERSION = "apuntar-5";
 const FICHEROS = ["./", "index.html", "cola.js", "avisos.js", "manifest.webmanifest", "icon-192.png", "icon-512.png"];
 
 self.addEventListener("install", e => {
@@ -51,12 +51,14 @@ self.addEventListener("push", e => {
   let d = {};
   try { d = e.data ? e.data.json() : {} } catch (x) { d = { cuerpo: e.data ? e.data.text() : "" } }
   const titulo = d.titulo || "Segundo Cerebro";
-  const op = { body: d.cuerpo || "", data: { url: d.url || "" }, icon: "icon-192.png", requireInteraction: !!d.urgente };
+  const op = { body: d.cuerpo || "", data: { url: d.url || "", clave: d.clave || "" }, icon: "icon-192.png", requireInteraction: !!d.urgente };
+  // «Sobra» (25/11/2026): con un toque, ese aviso deja de llegar y el lunes se revisa la regla.
+  if (d.clave) op.actions = [{ action: "sobra", title: "Sobra" }];
   // El mismo asunto (por ejemplo, una cuenta que sigue sin datos) sustituye al aviso anterior en vez de apilarse.
   if (d.clave) { op.tag = d.clave; op.renotify = true }
   e.waitUntil(Promise.all([
     self.registration.showNotification(titulo, op),
-    Avisos.guarda({ titulo, cuerpo: d.cuerpo || "", url: d.url || "", t: Date.now() }).then(() => Avisos.poda()).catch(() => {}),
+    Avisos.guarda({ titulo, cuerpo: d.cuerpo || "", url: d.url || "", clave: d.clave || "", t: Date.now() }).then(() => Avisos.poda()).catch(() => {}),
     avisa({ aviso: true }),
   ]));
 });
@@ -64,8 +66,13 @@ self.addEventListener("push", e => {
 // Al tocar el aviso se abre lo que dice (normalmente el panel, en su sitio); sin enlace, la app.
 self.addEventListener("notificationclick", e => {
   e.notification.close();
-  const url = (e.notification.data && e.notification.data.url) || "./";
-  e.waitUntil(self.clients.openWindow(url));
+  const d = e.notification.data || {};
+  if (e.action === "sobra" && d.clave) {
+    // Va por el mismo buzón que las notas: el vigilante del Mac lo recoge y deja de mandar ese aviso.
+    e.waitUntil(Cola.pon(notaSobra(d.clave)).then(() => envia()).catch(() => {}));
+    return;
+  }
+  e.waitUntil(self.clients.openWindow(d.url || "./"));
 });
 
 // Si el navegador cambia la suscripción, se da de alta otra vez solo.
