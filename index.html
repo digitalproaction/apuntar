@@ -32,6 +32,7 @@ button:active{opacity:.8}
 #avl .pie{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:2px}
 #avl .sobra{width:auto;flex:none;padding:5px 12px;font-size:13px;font-weight:600;border:1px solid var(--line);border-radius:8px;background:none;color:var(--muted)}
 #avl .sobra[disabled]{opacity:.6}
+#ver{flex:none;margin:0;font-size:12px;color:var(--muted);text-align:center}
 </style>
 </head>
 <body>
@@ -43,6 +44,7 @@ button:active{opacity:.8}
   <button id="avb" type="button" hidden>Activar avisos</button>
   <ul id="avl"></ul>
 </section>
+<p id="ver">Versión 6</p>
 <script src="cola.js"></script>
 <script src="avisos.js"></script>
 <script>
@@ -118,7 +120,9 @@ b.addEventListener("click", async () => {
 });
 t.addEventListener("input", borrador);
 addEventListener("online", pendiente);
-document.addEventListener("visibilitychange", () => { if (!document.hidden) { pinta(""); pendiente() } });
+document.addEventListener("visibilitychange", () => { if (!document.hidden) { pinta(""); pendiente(); busca() } });
+// Busca versión nueva de la app cada vez que se abre o se vuelve a ella (25/11/2026).
+const busca = () => { if ("serviceWorker" in navigator) navigator.serviceWorker.getRegistration().then(r => r && r.update()).catch(() => {}) };
 
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.addEventListener("message", e => {
@@ -176,7 +180,7 @@ avb.addEventListener("click", async () => {
   } catch (e) { avisos("No se han podido activar. Vuelve a pulsar.") }
   finally { avb.disabled = false }
 });
-prepara().then(() => { pinta(""); pendiente(); avisos("") });
+prepara().then(() => { pinta(""); pendiente(); avisos(""); busca() });
 </script>
 </body>
 </html>
