@@ -3,8 +3,8 @@
 // y envía las notas por su cuenta: sigue aunque la app esté cerrada y espera a que vuelva la conexión.
 // Desde el 24/11/2026 también enseña los avisos que manda el Mac (avisos.js).
 importScripts("cola.js", "avisos.js");
-const VERSION = "apuntar-6";
-const FICHEROS = ["./", "index.html", "cola.js", "avisos.js", "manifest.webmanifest", "icon-192.png", "icon-512.png"];
+const VERSION = "apuntar-7";   // 7: iconos en dorado, como el panel (26/11/2026)
+const FICHEROS = ["./", "index.html", "cola.js", "avisos.js", "manifest.webmanifest", "icon-192-oro.png", "icon-512-oro.png", "icon-512-oro-mask.png", "badge-96.png"];
 
 self.addEventListener("install", e => {
   // cache: "reload" evita guardar una copia vieja que siga en la memoria del navegador.
@@ -51,7 +51,7 @@ self.addEventListener("push", e => {
   let d = {};
   try { d = e.data ? e.data.json() : {} } catch (x) { d = { cuerpo: e.data ? e.data.text() : "" } }
   const titulo = d.titulo || "Segundo Cerebro";
-  const op = { body: d.cuerpo || "", data: { url: d.url || "", clave: d.clave || "" }, icon: "icon-192.png", requireInteraction: !!d.urgente };
+  const op = { body: d.cuerpo || "", data: { url: d.url || "", clave: d.clave || "" }, icon: "icon-192-oro.png", badge: "badge-96.png", requireInteraction: !!d.urgente };
   // «Sobra» (25/11/2026): con un toque, ese aviso deja de llegar y el lunes se revisa la regla.
   if (d.clave) op.actions = [{ action: "sobra", title: "Sobra" }];
   // El mismo asunto (por ejemplo, una cuenta que sigue sin datos) sustituye al aviso anterior en vez de apilarse.
