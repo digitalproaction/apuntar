@@ -3,8 +3,8 @@
 // y envía las notas por su cuenta: sigue aunque la app esté cerrada y espera a que vuelva la conexión.
 // Desde el 24/11/2026 también enseña los avisos que manda el Mac (avisos.js).
 importScripts("cola.js", "avisos.js");
-const VERSION = "apuntar-10";   // 7: iconos en dorado (26/11/2026) · 8: botón con lo que hay que hacer en el aviso (26/11/2026) · 9: ubicación para el tiempo del panel, al abrir la app (26/11/2026) · 10: el Mac quita del móvil los avisos ya resueltos (26/11/2026)
-const APP = "10";             // la que se le dice al Mac (AVISOS-VERSION)
+const VERSION = "apuntar-11";   // 7: iconos en dorado (26/11/2026) · 8: botón con lo que hay que hacer en el aviso (26/11/2026) · 9: ubicación para el tiempo del panel, al abrir la app (26/11/2026) · 10: el Mac quita del móvil los avisos ya resueltos · 11: y en la lista de la app salen en gris (26/11/2026)
+const APP = "11";             // la que se le dice al Mac (AVISOS-VERSION)
 const FICHEROS = ["./", "index.html", "cola.js", "avisos.js", "manifest.webmanifest", "icon-192-oro.png", "icon-512-oro.png", "icon-512-oro-mask.png", "badge-96.png"];
 
 self.addEventListener("install", e => {
@@ -121,6 +121,8 @@ async function retira(reg, d) {
     muda = true;
   }
   // Si no estaba (Marc ya la había tocado o quitado), no hay nada que enseñar.
+  // En la lista de avisos de la app queda en gris, con «✓ Ya está» (versión 11).
+  await Avisos.resuelve(d.retirar).then(() => avisa({ aviso: true })).catch(() => {});
   // Le cuenta al Mac qué ha pasado: así se comprueba que en el móvil funciona sin preguntárselo a Marc.
   await Cola.pon(notaRetirada(d.retirar, "cerradas " + suyas.length + " · quedan " + deVerdad.length + " · muda " + (muda ? "sí" : "no")))
     .then(() => envia()).catch(() => {});

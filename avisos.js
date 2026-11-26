@@ -24,6 +24,10 @@ const Avisos = (() => {
     guarda: a => hace("readwrite", s => s.add(a)),
     ultimos: async n => ((await hace("readonly", s => s.getAll())) || []).slice(-n).reverse(),
     marca: async n => { const a = await hace("readonly", s => s.get(n)); if (a) { a.sobra = true; await hace("readwrite", s => s.put(a)) } },
+    // El Mac lo retiró porque ya está resuelto (versión 11): en la lista sale en gris, con «✓ Ya está».
+    resuelve: async clave => {
+      for (const a of (await hace("readonly", s => s.getAll())) || []) if (a.clave === clave && !a.hecho) { a.hecho = true; await hace("readwrite", s => s.put(a)) }
+    },
     // Se quedan los 50 últimos.
     poda: async () => {
       const k = (await hace("readonly", s => s.getAllKeys())) || [];
