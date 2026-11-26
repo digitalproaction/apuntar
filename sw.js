@@ -3,8 +3,8 @@
 // y envía las notas por su cuenta: sigue aunque la app esté cerrada y espera a que vuelva la conexión.
 // Desde el 24/11/2026 también enseña los avisos que manda el Mac (avisos.js).
 importScripts("cola.js", "avisos.js");
-const VERSION = "apuntar-12";   // 7: iconos en dorado (26/11/2026) · 8: botón con lo que hay que hacer en el aviso (26/11/2026) · 9: ubicación para el tiempo del panel, al abrir la app (26/11/2026) · 10: el Mac quita del móvil los avisos ya resueltos · 11: y en la lista de la app salen en gris · 12: nunca se mezclan ficheros de dos versiones (26/11/2026)
-const APP = "12";             // la que se le dice al Mac (AVISOS-VERSION)
+const VERSION = "apuntar-13";   // 7: iconos en dorado (26/11/2026) · 8: botón con lo que hay que hacer en el aviso (26/11/2026) · 9: ubicación para el tiempo del panel, al abrir la app (26/11/2026) · 10: el Mac quita del móvil los avisos ya resueltos · 11: y en la lista de la app salen en gris · 12: nunca se mezclan ficheros de dos versiones · 13: su versión le llega al Mac al momento (26/11/2026)
+const APP = "13";             // la que se le dice al Mac (AVISOS-VERSION)
 const FICHEROS = ["./", "index.html", "cola.js", "avisos.js", "manifest.webmanifest", "icon-192-oro.png", "icon-512-oro.png", "icon-512-oro-mask.png", "badge-96.png"];
 // Nunca dos versiones mezcladas (26/11/2026). La web de GitHub guarda cada fichero hasta 10 minutos e ignora lo que va
 // detrás de «?»: justo después de publicar puede dar el sw.js nuevo con el avisos.js de antes. Ese día la versión 11 se
@@ -31,14 +31,15 @@ self.addEventListener("install", e => {
 
 self.addEventListener("activate", e => {
   e.waitUntil((async () => {
+    // Primero apunta su versión para el Mac y pide que salga sola: la página recargada a veces miraba la cola antes de que
+    // estuviera y la nota se quedaba esperando (26/11/2026, la 12 no llegó al Mac hasta el siguiente envío).
+    await Cola.pon(notaVersion(APP)).catch(() => {});
+    if (self.registration.sync) await self.registration.sync.register("enviar-version-" + Date.now()).catch(() => {});
     const k = await caches.keys(), habia = k.some(x => x !== VERSION);
     await Promise.all(k.filter(x => x !== VERSION).map(x => caches.delete(x)));
     await self.clients.claim();
     // Si estaba abierta la versión anterior, la recarga: así basta con abrir la app una vez.
     if (habia) for (const c of await self.clients.matchAll({ type: "window" })) c.navigate(c.url).catch(() => {});
-    // Le dice al Mac en qué versión está: solo a una que lo entiende le manda «retirar». Sale con la siguiente
-    // pasada de la cola (la página la pide al abrirse); aquí no se espera a la red para no frenar la recarga.
-    await Cola.pon(notaVersion(APP)).catch(() => {});
   })());
 });
 
