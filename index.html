@@ -47,7 +47,7 @@ button:active{opacity:.8}
   <ul id="avl"></ul>
 </section>
 <p id="ubi" role="status" hidden></p>
-<p id="ver">Versión 9</p>
+<p id="ver">Versión 10</p>
 <script src="cola.js"></script>
 <script src="avisos.js"></script>
 <script>
@@ -90,7 +90,7 @@ let turno = 0;
 const di = x => { turno++; m.textContent = x };
 async function pinta(txt) {
   const mio = ++turno; let n = 0, c = null;
-  try { n = (await Cola.todas()).length; c = await Cola.conf() } catch (e) {}
+  try { n = (await Cola.todas()).filter(x => !x.sistema).length; c = await Cola.conf() } catch (e) {}   // las del sistema no son notas suyas
   if (mio !== turno) return;
   if (!c) { m.textContent = "Falta conectar la app: ábrela una vez desde tu panel, con el botón Instalar."; return }
   const p = !n ? "" : (n === 1 ? "1 nota sin enviar. Se envía sola" : n + " notas sin enviar. Se envían solas") + (SOLA ? " en cuanto haya conexión, aunque cierres la app." : " al abrir la app con conexión.");
@@ -111,6 +111,9 @@ async function pide() {
   }
 }
 const pendiente = async () => { try { if ((await Cola.todas()).length) pide() } catch (e) {} };
+// Las mudas «✓ Ya está» (avisos resueltos que eran la única notificación a la vista) se van al abrir la app (26/11/2026).
+const limpiaHechas = () => { if ("serviceWorker" in navigator) navigator.serviceWorker.ready.then(r => r.getNotifications())
+  .then(ns => ns.forEach(n => n.data && n.data.hecho && n.close())).catch(() => {}) };
 
 b.addEventListener("click", async () => {
   const x = t.value.trim(); if (!x) return;
@@ -123,7 +126,7 @@ b.addEventListener("click", async () => {
 });
 t.addEventListener("input", borrador);
 addEventListener("online", pendiente);
-document.addEventListener("visibilitychange", () => { if (!document.hidden) { pinta(""); pendiente(); busca(); ubicacion() } });
+document.addEventListener("visibilitychange", () => { if (!document.hidden) { pinta(""); pendiente(); busca(); ubicacion(); limpiaHechas() } });
 // Busca versión nueva de la app cada vez que se abre o se vuelve a ella (25/11/2026).
 const busca = () => { if ("serviceWorker" in navigator) navigator.serviceWorker.getRegistration().then(r => r && r.update()).catch(() => {}) };
 
@@ -238,7 +241,7 @@ async function miraUbi() {
   }
   pintaUbi(u, await permisoUbi());
 }
-prepara().then(() => { pinta(""); pendiente(); avisos(""); busca(); ubicacion() });
+prepara().then(() => { pinta(""); pendiente(); avisos(""); busca(); ubicacion(); limpiaHechas() });
 </script>
 </body>
 </html>

@@ -38,7 +38,17 @@ const bytesClave = b => {
 };
 const dosAv = n => (n < 10 ? "0" : "") + n;
 const ahoraAv = () => { const d = new Date(); return d.getFullYear() + "-" + dosAv(d.getMonth() + 1) + "-" + dosAv(d.getDate()) + " " + dosAv(d.getHours()) + ":" + dosAv(d.getMinutes()) };
+const idAv = p => p + "-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+// Las notas «del sistema» (sistema: true) viajan por el buzón como las de Marc, pero no cuentan como notas suyas en la
+// pantalla («1 nota sin enviar», «Enviado.»).
 // El alta va por el mismo buzón que las notas, con su clave: solo esta app puede darse de alta para recibir avisos.
-const notaAlta = s => ({ f: ahoraAv(), t: "AVISOS-ALTA " + JSON.stringify(s), id: "alta-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6) });
+const notaAlta = s => ({ f: ahoraAv(), t: "AVISOS-ALTA " + JSON.stringify(s), id: idAv("alta"), sistema: true });
 // «Sobra»: este aviso no le sirve a Marc. El vigilante deja de mandarlo y el repaso del lunes revisa la regla.
-const notaSobra = clave => ({ f: ahoraAv(), t: "AVISOS-SOBRA " + clave, id: "sobra-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6) });
+const notaSobra = clave => ({ f: ahoraAv(), t: "AVISOS-SOBRA " + clave, id: idAv("sobra"), sistema: true });
+// Desde la versión 10 (26/11/2026), para quitar del móvil los avisos ya resueltos:
+// - «CERRADA»: Marc tocó o quitó esa notificación; el Mac ya no tiene que retirarla.
+// - «VERSION»: en qué versión está la app; el Mac solo manda «retirar» a una que lo entiende.
+// - «RETIRADA»: qué pasó al retirar una (cuántas se quitaron y si quedó la muda «✓ Ya está»), para comprobarlo sin preguntar a Marc.
+const notaCerrada = clave => ({ f: ahoraAv(), t: "AVISOS-CERRADA " + clave, id: idAv("cerr"), sistema: true });
+const notaVersion = v => ({ f: ahoraAv(), t: "AVISOS-VERSION " + v, id: idAv("ver"), sistema: true });
+const notaRetirada = (clave, x) => ({ f: ahoraAv(), t: "AVISOS-RETIRADA " + clave + " · " + x, id: idAv("ret"), sistema: true });

@@ -25,7 +25,7 @@ const Cola = (() => {
   };
 })();
 
-// Envía las notas de una en una y dice cuántas han salido.
+// Envía las notas de una en una y dice cuántas de Marc han salido.
 // Si algo falla lanza un error: así el navegador sabe que tiene que reintentarlo.
 async function enviaCola() {
   const c = await Cola.conf();
@@ -41,6 +41,6 @@ async function enviaCola() {
       if (!j.ok) throw Object.assign(new Error("clave"), { clave: true });
     } finally { clearTimeout(reloj) }
     await Cola.quita(n.id);
-    hechas++;
+    if (!n.sistema) hechas++;   // las del sistema (avisos.js) no son notas de Marc
   }
 }
