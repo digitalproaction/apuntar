@@ -3,7 +3,7 @@
 // y envía las notas por su cuenta: sigue aunque la app esté cerrada y espera a que vuelva la conexión.
 // Desde el 24/11/2026 también enseña los avisos que manda el Mac (avisos.js).
 importScripts("cola.js", "avisos.js");
-const VERSION = "apuntar-8";   // 7: iconos en dorado (26/11/2026) · 8: botón con lo que hay que hacer en el aviso (26/11/2026)
+const VERSION = "apuntar-9";   // 7: iconos en dorado (26/11/2026) · 8: botón con lo que hay que hacer en el aviso (26/11/2026) · 9: ubicación para el tiempo del panel, al abrir la app (26/11/2026)
 const FICHEROS = ["./", "index.html", "cola.js", "avisos.js", "manifest.webmanifest", "icon-192-oro.png", "icon-512-oro.png", "icon-512-oro-mask.png", "badge-96.png"];
 
 self.addEventListener("install", e => {

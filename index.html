@@ -33,6 +33,8 @@ button:active{opacity:.8}
 #avl .sobra{width:auto;flex:none;padding:5px 12px;font-size:13px;font-weight:600;border:1px solid var(--line);border-radius:8px;background:none;color:var(--muted)}
 #avl .sobra[disabled]{opacity:.6}
 #ver{flex:none;margin:0;font-size:12px;color:var(--muted);text-align:center}
+#ubi{flex:none;margin:0;font-size:12px;color:var(--muted);text-align:center}
+#ubi button{display:inline;width:auto;margin-left:6px;padding:3px 10px;font-size:12px;font-weight:600;border:1px solid var(--line);border-radius:8px;background:none;color:var(--muted)}
 </style>
 </head>
 <body>
@@ -44,7 +46,8 @@ button:active{opacity:.8}
   <button id="avb" type="button" hidden>Activar avisos</button>
   <ul id="avl"></ul>
 </section>
-<p id="ver">Versión 8</p>
+<p id="ubi" role="status" hidden></p>
+<p id="ver">Versión 9</p>
 <script src="cola.js"></script>
 <script src="avisos.js"></script>
 <script>
@@ -120,7 +123,7 @@ b.addEventListener("click", async () => {
 });
 t.addEventListener("input", borrador);
 addEventListener("online", pendiente);
-document.addEventListener("visibilitychange", () => { if (!document.hidden) { pinta(""); pendiente(); busca() } });
+document.addEventListener("visibilitychange", () => { if (!document.hidden) { pinta(""); pendiente(); busca(); ubicacion() } });
 // Busca versión nueva de la app cada vez que se abre o se vuelve a ella (25/11/2026).
 const busca = () => { if ("serviceWorker" in navigator) navigator.serviceWorker.getRegistration().then(r => r && r.update()).catch(() => {}) };
 
@@ -180,7 +183,62 @@ avb.addEventListener("click", async () => {
   } catch (e) { avisos("No se han podido activar. Vuelve a pulsar.") }
   finally { avb.disabled = false }
 });
-prepara().then(() => { pinta(""); pendiente(); avisos(""); busca() });
+// ----- La ubicación para el tiempo del panel (26/11/2026) -----
+// Marc: un GPS «momentáneo, que no gaste prácticamente batería y que sea bastante preciso», sin que el móvil le controle
+// todo el rato. Al abrir la app o volver a ella, si la última enviada tiene más de 3 horas, pide una sola posición sin
+// encender el GPS (enableHighAccuracy false) y aprovecha la que ya tenga el móvil de la última media hora. Nada en
+// segundo plano y sin historial. Va redondeada a 2 decimales (≈1 km) por el buzón, como «UBICACION {…}»; el Mac la pasa
+// a la pestaña oculta _tiempo y la quita de Entrada. Sin conexión no se mira ni se envía: espera a la siguiente apertura.
+// Si Marc no la permite, no se vuelve a pedir: solo si toca «Permitir» aquí.
+const UBI = "apuntar-ubicacion", ubi = document.getElementById("ubi");
+const CADA_UBI = 3 * 3600e3, REINTENTO_UBI = 10 * 60e3;
+const horaUbi = ms => { const d = new Date(ms); return dos(d.getHours()) + ":" + dos(d.getMinutes()) };
+const permisoUbi = async () => { try { return (await navigator.permissions.query({ name: "geolocation" })).state } catch (e) { return "prompt" } };
+function pintaUbi(u, estado, txt) {
+  const no = u.no && estado === "prompt";
+  ubi.textContent = txt || (estado === "denied" ? "Tiempo: la ubicación está bloqueada en los ajustes del móvil. El panel usa el sitio que escribas."
+    : no ? "Tiempo: sin ubicación. El panel usa el sitio que escribas."
+    : u.enviada ? "Tiempo: ubicación enviada a las " + horaUbi(u.enviada) + "." : "");
+  if (!txt && no) {
+    const x = document.createElement("button"); x.type = "button"; x.textContent = "Permitir";
+    x.addEventListener("click", () => { const v = lee(UBI, {}); delete v.no; delete v.intento; pon(UBI, v); ubicacion() });
+    ubi.append(x);
+  }
+  ubi.hidden = !ubi.textContent;
+}
+// Una sola lectura a la vez: abrir la app y volver a ella pueden llegar juntos.
+let ubiEnMarcha = null;
+function ubicacion() { return ubiEnMarcha || (ubiEnMarcha = miraUbi().catch(() => {}).finally(() => { ubiEnMarcha = null })) }
+async function miraUbi() {
+  const u = lee(UBI, {}), estado = await permisoUbi();
+  pintaUbi(u, estado);
+  if (document.hidden || !navigator.onLine || !("geolocation" in navigator) || estado === "denied") return;
+  if (estado === "prompt" && u.no) return;
+  if (u.enviada && Date.now() - u.enviada < CADA_UBI) return;
+  if (u.intento && Date.now() - u.intento < REINTENTO_UBI) return;
+  const c = await Cola.conf().catch(() => null);
+  if (!c) return;
+  u.intento = Date.now(); pon(UBI, u);
+  if (estado === "prompt") pintaUbi(u, estado, "Tiempo: permite la ubicación para que el panel sepa dónde estás. Solo se mira al abrir la app.");
+  const p = await new Promise(ok => navigator.geolocation.getCurrentPosition(ok, err => {
+    // 1: no la ha permitido (o ha cerrado la pregunta). 2 y 3: el móvil no la sabe ahora; se prueba en la próxima apertura.
+    if (err && err.code === 1) { u.no = true; pon(UBI, u) }
+    ok(null);
+  }, { enableHighAccuracy: false, maximumAge: 30 * 60e3, timeout: 15e3 }));
+  // Una posición de más de 5 km de margen no dice dónde está: mejor el sitio escrito. Se prueba en la próxima apertura.
+  if (p && p.coords.accuracy <= 5000) {
+    const x = { lat: p.coords.latitude.toFixed(2), lon: p.coords.longitude.toFixed(2),
+                t: new Date(p.timestamp || Date.now()).toISOString().slice(0, 16).replace("T", " "), p: Math.round(p.coords.accuracy) };
+    const ab = new AbortController(), reloj = setTimeout(() => ab.abort(), 25000);
+    try {
+      const r = await fetch(c.d, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, signal: ab.signal,
+        body: JSON.stringify({ k: c.k, f: ahora(), t: "UBICACION " + JSON.stringify(x), id: "ubi-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6) }) });
+      if ((await r.json()).ok) { u.enviada = Date.now(); delete u.no; pon(UBI, u) }
+    } catch (e) {} finally { clearTimeout(reloj) }
+  }
+  pintaUbi(u, await permisoUbi());
+}
+prepara().then(() => { pinta(""); pendiente(); avisos(""); busca(); ubicacion() });
 </script>
 </body>
 </html>
