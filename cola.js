@@ -1,4 +1,5 @@
 "use strict";
+const VERSION_COLA = "apuntar-12";   // la misma que VERSION en sw.js: la instalación lo comprueba
 // La cola de notas y su envío. La usan la página y el servicio de fondo.
 // Va en IndexedDB porque el servicio de fondo no puede leer localStorage.
 const Cola = (() => {

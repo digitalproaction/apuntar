@@ -1,4 +1,5 @@
 "use strict";
+const VERSION_AVISOS = "apuntar-12";   // la misma que VERSION en sw.js: la instalación lo comprueba
 // Los avisos que manda el Mac (el vigilante de avisos, _herramientas/avisos/ del repositorio privado).
 // La clave de abajo es pública: solo le dice al móvil de quién acepta avisos y no abre nada.
 // Los avisos llegan cifrados de punta a punta: el servicio de avisos del navegador no puede leerlos.

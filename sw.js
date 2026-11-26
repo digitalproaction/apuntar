@@ -3,13 +3,29 @@
 // y envía las notas por su cuenta: sigue aunque la app esté cerrada y espera a que vuelva la conexión.
 // Desde el 24/11/2026 también enseña los avisos que manda el Mac (avisos.js).
 importScripts("cola.js", "avisos.js");
-const VERSION = "apuntar-11";   // 7: iconos en dorado (26/11/2026) · 8: botón con lo que hay que hacer en el aviso (26/11/2026) · 9: ubicación para el tiempo del panel, al abrir la app (26/11/2026) · 10: el Mac quita del móvil los avisos ya resueltos · 11: y en la lista de la app salen en gris (26/11/2026)
-const APP = "11";             // la que se le dice al Mac (AVISOS-VERSION)
+const VERSION = "apuntar-12";   // 7: iconos en dorado (26/11/2026) · 8: botón con lo que hay que hacer en el aviso (26/11/2026) · 9: ubicación para el tiempo del panel, al abrir la app (26/11/2026) · 10: el Mac quita del móvil los avisos ya resueltos · 11: y en la lista de la app salen en gris · 12: nunca se mezclan ficheros de dos versiones (26/11/2026)
+const APP = "12";             // la que se le dice al Mac (AVISOS-VERSION)
 const FICHEROS = ["./", "index.html", "cola.js", "avisos.js", "manifest.webmanifest", "icon-192-oro.png", "icon-512-oro.png", "icon-512-oro-mask.png", "badge-96.png"];
+// Nunca dos versiones mezcladas (26/11/2026). La web de GitHub guarda cada fichero hasta 10 minutos e ignora lo que va
+// detrás de «?»: justo después de publicar puede dar el sw.js nuevo con el avisos.js de antes. Ese día la versión 11 se
+// instaló en el móvil con el avisos.js de la 10 y fallaba al retirar avisos. Cada fichero de texto lleva su versión y,
+// si alguno no es de esta, la versión nueva no se instala: el navegador lo vuelve a intentar al abrir la app otra vez.
+if (typeof VERSION_COLA === "undefined" || VERSION_COLA !== VERSION || typeof VERSION_AVISOS === "undefined" || VERSION_AVISOS !== VERSION)
+  throw new Error("cola.js o avisos.js de otra versión: se reintenta más tarde");
 
 self.addEventListener("install", e => {
   // cache: "reload" evita guardar una copia vieja que siga en la memoria del navegador.
-  e.waitUntil(caches.open(VERSION).then(c => c.addAll(FICHEROS.map(f => new Request(f, { cache: "reload" })))));
+  e.waitUntil((async () => {
+    const c = await caches.open(VERSION);
+    try {
+      for (const f of FICHEROS) {
+        const r = await fetch(new Request(f, { cache: "reload" }));
+        if (!r.ok) throw new Error("no llega " + f);
+        if (/(^\.\/$|\.html$|\.js$)/.test(f) && !(await r.clone().text()).includes(VERSION)) throw new Error(f + " es de otra versión");
+        await c.put(f, r);
+      }
+    } catch (err) { await caches.delete(VERSION); throw err }
+  })());
   self.skipWaiting();
 });
 
@@ -107,6 +123,12 @@ function cerrada(d) {
   return Cola.pon(notaCerrada(d.clave)).then(() => envia()).catch(() => {});
 }
 async function retira(reg, d) {
+  let x = "";
+  try { x = await quita(reg, d) } catch (err) { x = "error " + (err && err.name || "") }
+  // Le cuenta al Mac qué ha pasado: así se comprueba que en el móvil funciona sin preguntárselo a Marc.
+  await Cola.pon(notaRetirada(d.retirar, x)).then(() => envia()).catch(() => {});
+}
+async function quita(reg, d) {
   const suyas = await reg.getNotifications({ tag: d.retirar });
   suyas.forEach(n => n.close());
   const otras = (await reg.getNotifications()).filter(n => n.tag !== d.retirar);
@@ -123,9 +145,7 @@ async function retira(reg, d) {
   // Si no estaba (Marc ya la había tocado o quitado), no hay nada que enseñar.
   // En la lista de avisos de la app queda en gris, con «✓ Ya está» (versión 11).
   await Avisos.resuelve(d.retirar).then(() => avisa({ aviso: true })).catch(() => {});
-  // Le cuenta al Mac qué ha pasado: así se comprueba que en el móvil funciona sin preguntárselo a Marc.
-  await Cola.pon(notaRetirada(d.retirar, "cerradas " + suyas.length + " · quedan " + deVerdad.length + " · muda " + (muda ? "sí" : "no")))
-    .then(() => envia()).catch(() => {});
+  return "cerradas " + suyas.length + " · quedan " + deVerdad.length + " · muda " + (muda ? "sí" : "no");
 }
 
 // Si el navegador cambia la suscripción, se da de alta otra vez solo.
