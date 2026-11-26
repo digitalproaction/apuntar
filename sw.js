@@ -3,7 +3,7 @@
 // y envía las notas por su cuenta: sigue aunque la app esté cerrada y espera a que vuelva la conexión.
 // Desde el 24/11/2026 también enseña los avisos que manda el Mac (avisos.js).
 importScripts("cola.js", "avisos.js");
-const VERSION = "apuntar-7";   // 7: iconos en dorado, como el panel (26/11/2026)
+const VERSION = "apuntar-8";   // 7: iconos en dorado (26/11/2026) · 8: botón con lo que hay que hacer en el aviso (26/11/2026)
 const FICHEROS = ["./", "index.html", "cola.js", "avisos.js", "manifest.webmanifest", "icon-192-oro.png", "icon-512-oro.png", "icon-512-oro-mask.png", "badge-96.png"];
 
 self.addEventListener("install", e => {
@@ -51,9 +51,14 @@ self.addEventListener("push", e => {
   let d = {};
   try { d = e.data ? e.data.json() : {} } catch (x) { d = { cuerpo: e.data ? e.data.text() : "" } }
   const titulo = d.titulo || "Segundo Cerebro";
-  const op = { body: d.cuerpo || "", data: { url: d.url || "", clave: d.clave || "" }, icon: "icon-192-oro.png", badge: "badge-96.png", requireInteraction: !!d.urgente };
-  // «Sobra» (25/11/2026): con un toque, ese aviso deja de llegar y el lunes se revisa la regla.
-  if (d.clave) op.actions = [{ action: "sobra", title: "Sobra" }];
+  const boton = d.boton && /^https:\/\//.test(d.boton.url || "") ? d.boton : null;
+  const op = { body: d.cuerpo || "", data: { url: d.url || "", clave: d.clave || "", boton: boton ? boton.url : "" }, icon: "icon-192-oro.png", badge: "badge-96.png", requireInteraction: !!d.urgente };
+  // Al tocar el aviso se abre su tarjeta en el panel. Si lo que hay que hacer es de un toque (abrir el chat del cliente,
+  // abrir Axi), el botón sale ya en la notificación (26/11/2026). «Sobra» (25/11/2026): con un toque, ese aviso deja de
+  // llegar y el lunes se revisa la regla. Android enseña como mucho dos botones.
+  op.actions = [];
+  if (boton) op.actions.push({ action: "abrir", title: String(boton.texto || "Abrir").slice(0, 24) });
+  if (d.clave) op.actions.push({ action: "sobra", title: "Sobra" });
   // El mismo asunto (por ejemplo, una cuenta que sigue sin datos) sustituye al aviso anterior en vez de apilarse.
   if (d.clave) { op.tag = d.clave; op.renotify = true }
   e.waitUntil(Promise.all([
@@ -72,6 +77,7 @@ self.addEventListener("notificationclick", e => {
     e.waitUntil(Cola.pon(notaSobra(d.clave)).then(() => envia()).catch(() => {}));
     return;
   }
+  if (e.action === "abrir" && d.boton) { e.waitUntil(self.clients.openWindow(d.boton)); return; }
   e.waitUntil(self.clients.openWindow(d.url || "./"));
 });
 
